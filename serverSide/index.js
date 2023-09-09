@@ -1,7 +1,8 @@
-const app = require ("./app")
+const { app, } = require("./app");
+const { databaseConnect } = require("./config/db");
+const { port } = require("./secret");
 
-const port = 8001;
-
-app.listen(port, function() {
-    console.log("Application is running on port " + port);
+app.listen( port, async () => {
+    console.log(`Server is Running Successfully at http://localhost:${port}`);
+    await databaseConnect()
 });

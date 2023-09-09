@@ -1,58 +1,67 @@
-const express = require ("express")
-const path = require('path');
-const router = require ("./src/routes/api.js")
-const app = express()
-const bodyParser = require ("body-parser")
+const express = require('express');
+const cors = require('cors');
+const hpp = require('hpp');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const createError = require('http-errors');
+const limit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
+const bodyParser = require('body-parser');
 
-// Security Middleware 
+const { errorResponse, successResponse } = require('./controller/responseController');
+const { seedRouter } = require('./routes/seedRouter');
+const { salesRouter } = require('./routes/salesRouter');
 
-const rateLimit = require("express-rate-limit")
-const helmet = require ("helmet")
-const mongoSanitize = require ("express-mongo-sanitize")
-const hpp = require ("hpp")
-const cors = require ("cors")
+const app = express();
 
+// built/security/third-party middlware implements 
+app.use(express.json());
+app.use(express.urlencoded({extended : true}));
+app.use(bodyParser.json());
+app.use(cors());
+app.use(helmet());
+app.use(morgan('dev'));
+app.use(mongoSanitize());
+app.use(hpp());
 
-// Database 
+// express rate limiter 
+const limiter = limit({
+    windowMs : 1 * 60 * 1000,
+    max : 25,
+    message : "Too many attempst from this IP, please try again after one minute"
+});
+app.use(limiter);
 
-const mongoose = require("mongoose")
+// simple api test 
+app.get('/', (req, res, next) => {
+    try {
+        successResponse(res, {
+            statusCode : 200,
+            message : res.message,
+            payload : { },
+        }); 
+    } catch (error) {
+        next(error)
+    }
+})
 
-// Security middleware Implementation 
+// router implements 
+app.use('/api/seed', seedRouter);
+app.use('/api/v1', salesRouter)
 
-app.use(cors())
-app.use(helmet())
-app.use(mongoSanitize())
-app.use(hpp())
+// client error 
+app.use((req, res, next) => {
+    next(createError(404, "Route Not Found"));
+});
 
-// Body Parser Implementation 
+// server error & all error 
+app.use((err, req, res, next) => {
+     errorResponse(res, {
+        statusCode : err.status,
+        message : err.message
+    });
+});
 
-app.use(bodyParser.json())
-
-
-// Rate Limiter Implementation 
-
-const limiter = rateLimit({windowsMS:15*60*100, max: 100})
-
-
-// MongoDB Database Connection 
-
-const URI = "mongodb+srv://testUser7777:testUser7777@cluster0.xzrgtm1.mongodb.net/e-com?retryWrites=true&w=majority";
-const OPTIONS = { user: "testUser7777", pass: "testUser7777"};
-mongoose.connect(URI, OPTIONS)
-    .then(() => {
-        console.log("Connection Success");
-        // You can start your application or perform other operations here
-    })
-    .catch((error) => {
-        console.error("Connection Failed:", error);
-    })
-
-// Managing BackEnd API Routing
-app.use("/api/v1", router)
-
-
-
-
-
-
-module.exports = app
+module.exports = {
+    app
+}
